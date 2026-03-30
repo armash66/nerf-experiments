@@ -72,8 +72,8 @@ Images + Poses
 | Component | Status |
 |---|---|
 | Ray generation | ✅ Done |
-| Positional encoding | 🔄 In progress |
-| NeRF MLP | ⬜ Pending |
+| Positional encoding | ✅ Done |
+| NeRF MLP | 🔄 In progress |
 | Volume renderer | ⬜ Pending |
 | Training loop | ⬜ Pending |
 | Novel view synthesis | ⬜ Pending |
