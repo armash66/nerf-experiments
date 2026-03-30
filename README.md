@@ -1,145 +1,106 @@
 # nerf-experiments
 
-A minimal implementation of Neural Radiance Fields (NeRF) for learning 3D scene representations from multi-view images and rendering novel viewpoints.
+> Rebuilding how machines see space — from flat images to living 3D worlds.
 
-## Overview
+A from-scratch PyTorch implementation of Neural Radiance Fields (NeRF), built to understand the fundamental limits of 2D-to-3D reconstruction and push toward multimodal scene understanding.
 
-This project focuses on understanding and implementing the core components of NeRF from scratch. The goal is to study how a neural network can represent a continuous 3D scene and render images from arbitrary viewpoints.
+---
 
-## Objectives
+## What this is
 
-- Implement the NeRF pipeline step by step
-- Understand ray-based scene representation and volume rendering
-- Train a model to reconstruct scenes from images
-- Analyze behavior under limited input views
+Most 3D reconstruction pipelines are black boxes. This project is the opposite — every component is written from scratch, understood before it's used, and designed to be modified.
+
+The baseline follows the original NeRF paper (Mildenhall et al., 2020). The experiments go beyond it.
+
+---
+
+## Research direction
+
+Standard NeRF takes RGB images and learns to represent a scene volumetrically. That works well when the scene is fully visible. It breaks down when it isn't.
+
+This project investigates:
+
+- What NeRF actually *can't* reconstruct — occluded geometry, unseen surfaces
+- Where the line is between reconstruction and hallucination
+- Whether fusing signals beyond RGB (depth, thermal) can recover information that light alone cannot capture
+
+The goal is not to beat benchmarks. It's to understand the boundaries of the method and build something honest about what it knows and doesn't.
+
+---
 
 ## Structure
 
-```bash
+```
 nerf-experiments/
-├── data/
-├── models/
-├── utils/
-├── train.py
-├── render.py
-├── config.py
+├── nerf/
+│   ├── rays.py          # Ray generation from camera intrinsics + pose
+│   ├── encoding.py      # Positional encoding (Fourier features)
+│   ├── model.py         # NeRF MLP — (x,y,z,θ,φ) → (RGB, density)
+│   └── renderer.py      # Volume rendering along rays
+├── train.py             # Training loop
+├── render.py            # Novel view synthesis from trained model
+├── config.py            # Hyperparameters
+├── requirements.txt
+└── .gitignore
 ```
 
-## Implementation Plan
+---
 
-The project is organized into modular components, each responsible for a specific part of the NeRF pipeline. The implementation will proceed step by step, ensuring clarity and control over each stage.
+## Pipeline
 
-### 1. Ray Generation (`utils/rays.py`)
-
-- Convert image pixels into rays in 3D space.
-- For each pixel:
-  - Compute ray origin (camera position)
-  - Compute ray direction (through pixel into scene)
-- Use camera intrinsics (focal length) and extrinsics (pose matrix).
-
-**Output:**
-- `rays_o`: ray origins
-- `rays_d`: ray directions
+```
+Images + Poses
+      ↓
+  Ray Generation          rays.py
+      ↓
+  Point Sampling          renderer.py
+      ↓
+  Positional Encoding     encoding.py
+      ↓
+  MLP Query               model.py
+  (x,y,z,θ,φ) → (RGB, σ)
+      ↓
+  Volume Rendering        renderer.py
+      ↓
+  Rendered Image → Loss → Backprop
+```
 
 ---
 
-### 2. Sampling Along Rays (`utils/sampling.py`)
+## Implementation status
 
-- Sample a fixed number of points along each ray between near and far bounds.
-- These points represent candidate locations in 3D space.
-
-**Purpose:**
-- Approximate the continuous scene using discrete samples.
-
-**Output:**
-- 3D sample points per ray
-
----
-
-### 3. Neural Network (`models/nerf_mlp.py`)
-
-- A multi-layer perceptron (MLP) that models the scene.
-- Input:
-  - 3D coordinates (x, y, z)
-- Output:
-  - Color (R, G, B)
-  - Density (σ)
-
-**Role:**
-- Learn how the scene behaves at any 3D location.
+| Component | Status |
+|---|---|
+| Ray generation | ✅ Done |
+| Positional encoding | 🔄 In progress |
+| NeRF MLP | ⬜ Pending |
+| Volume renderer | ⬜ Pending |
+| Training loop | ⬜ Pending |
+| Novel view synthesis | ⬜ Pending |
 
 ---
 
-### 4. Volume Rendering (`utils/rendering.py`)
+## Setup
 
-- Combine sampled points along each ray to produce a final pixel color.
-- Use predicted density values to compute contribution weights.
-- Closer and denser points contribute more.
+```bash
+git clone https://github.com/your-username/nerf-experiments
+cd nerf-experiments
+pip install -r requirements.txt
+```
 
-**Key idea:**
-- Simulate how light accumulates along a ray.
+Training on the Blender synthetic dataset:
 
-**Output:**
-- Rendered pixel color
-
----
-
-### 5. Training Pipeline (`train.py`)
-
-- Load images and camera poses.
-- Generate rays for each image.
-- Sample points along rays.
-- Pass samples through the network.
-- Render predicted image.
-- Compute loss against ground truth.
-- Backpropagate and update model.
-
-**Loss Function:**
-- Mean Squared Error (MSE)
+```bash
+python train.py --config config.py --scene lego
+```
 
 ---
-
-### 6. View Synthesis (`render.py`)
-
-- Use trained model to render images from new camera poses.
-- Generate rays from new viewpoints.
-- Pass through full pipeline (sampling + network + rendering).
-
-**Result:**
-- Novel view generation
-
----
-
-### 7. Configuration (`config.py`)
-
-- Store hyperparameters such as:
-  - Number of samples per ray
-  - Learning rate
-  - Training steps
-  - Near/far bounds
-
----
-
-## Development Approach
-
-The implementation will follow a staged process:
-
-1. Implement each component independently
-2. Validate outputs at every step
-3. Integrate components gradually
-4. Train on a small dataset
-5. Extend with experiments (e.g., fewer input views)
-
-The focus is on understanding and control, not just end results.
-
-## Status
-
-Initial implementation in progress.
-
-## Direction
-
-The project will extend toward experimentation with sparse-view reconstruction and performance improvements over the baseline model.
 
 ## References
 
-Based on the original NeRF paper and related work available on arXiv.
+- [NeRF: Representing Scenes as Neural Radiance Fields for View Synthesis](https://arxiv.org/abs/2003.08934) — Mildenhall et al., 2020
+- [Tiny NeRF](https://github.com/bmild/nerf/blob/master/tiny_nerf.ipynb) — minimal reference implementation
+
+---
+
+*Built to understand, not just to replicate.*
