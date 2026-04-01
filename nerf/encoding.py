@@ -12,6 +12,6 @@ class PositionalEncoding(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         encoded = [x]
         for freq in self.freqs:
-            encoded.append(torch.sin(freq * torch.pi * x))
-            encoded.append(torch.cos(freq * torch.pi * x))
+            encoded.append(torch.sin(freq * x))
+            encoded.append(torch.cos(freq * x))
         return torch.cat(encoded, dim=-1)
