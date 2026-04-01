@@ -23,7 +23,7 @@ def get_config() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="NeRF Training Config")
 
     # ── Data ──────────────────────────────────────────────────────
-    parser.add_argument("--data_path",  type=str,   default="tiny_nerf_data.npz",
+    parser.add_argument("--data_path",  type=str,   default="data/tiny_nerf_data.npz",
                         help="Path to dataset (.npz for TinyNeRF)")
     parser.add_argument("--n_train",    type=int,   default=100,
                         help="Number of training images to use")
