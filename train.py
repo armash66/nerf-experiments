@@ -19,10 +19,10 @@ import torch
 import numpy as np
 import imageio
 import matplotlib.pyplot as plt
-from tqdm import trange
+from tqdm import trange, tqdm
 
 from config   import get_config
-from nerf.rays     import get_rays
+from nerf.ray      import get_rays
 from nerf.encoding import PositionalEncoding
 from nerf.model    import NeRFMLP, TinyNeRFMLP
 from nerf.renderer import render_rays
@@ -233,6 +233,12 @@ def train(cfg):
     loss_history = []
     psnr_history = []
 
+    # Reproducibility
+    torch.manual_seed(42)
+    np.random.seed(42)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(42)
+
     print(f"\nTraining on {device} for {cfg.n_iters} iterations...\n")
 
     # ── Loop ──────────────────────────────────────────────────────
@@ -271,23 +277,28 @@ def train(cfg):
         )
 
         # Loss: MSE on coarse + fine outputs
-        loss = torch.mean((out["coarse"]["color_map"] - target) ** 2)
+        mse_coarse = torch.mean((out["coarse"]["color_map"] - target) ** 2)
         if "fine" in out:
-            loss = loss + torch.mean((out["fine"]["color_map"] - target) ** 2)
+            mse_fine = torch.mean((out["fine"]["color_map"] - target) ** 2)
+            loss = mse_coarse + mse_fine
+        else:
+            mse_fine = mse_coarse
+            loss = mse_coarse
 
         optimizer.zero_grad()
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(params, max_norm=1.0)
         optimizer.step()
         scheduler.step()
 
         # ── Metrics ───────────────────────────────────────────────
-        psnr = -10.0 * torch.log10(loss.detach()).item()
+        psnr = -10.0 * torch.log10(mse_fine.detach()).item()
         loss_history.append(loss.item())
         psnr_history.append(psnr)
 
         # ── Logging ───────────────────────────────────────────────
         if (i + 1) % cfg.log_every == 0:
-            trange.write(
+            tqdm.write(
                 f"[{i+1:>6}/{cfg.n_iters}] "
                 f"loss={loss.item():.4f}  "
                 f"psnr={psnr:.2f}dB  "

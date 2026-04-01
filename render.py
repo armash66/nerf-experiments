@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 from tqdm import trange
 
 from config        import get_config
-from nerf.rays     import get_rays
+from nerf.ray      import get_rays
 from nerf.encoding import PositionalEncoding
 from nerf.model    import NeRFMLP, TinyNeRFMLP
 from nerf.renderer import render_rays
