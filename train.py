@@ -11,10 +11,14 @@ Usage:
     python train.py                          # default config
     python train.py --use_tiny               # faster, smaller model
     python train.py --n_iters 20000 --lr 1e-3
-    python train.py --resume outputs/checkpoints/ckpt_05000.pt
+    python train.py --resume outputs/experiment_1/checkpoints/ckpt_05000.pt
+    python train.py --experiment experiment_2 --use_tiny --n_iters 5000
 """
 
 import os
+import csv
+import time
+import shutil
 import torch
 import numpy as np
 import imageio
@@ -134,6 +138,56 @@ def load_checkpoint(path, model_coarse, model_fine, optimizer):
 
 
 # ─────────────────────────────────────────────
+# CONFIGURATION PERSISTENCE
+# ─────────────────────────────────────────────
+
+def save_config(cfg, path):
+    """Serialize all experiment settings to a text file for reproducibility."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        for k, v in sorted(vars(cfg).items()):
+            f.write(f"{k}={v}\n")
+    print(f"Config saved: {path}")
+
+
+# ─────────────────────────────────────────────
+# CSV LOGGER
+# ─────────────────────────────────────────────
+
+class CSVLogger:
+    """
+    Append-mode CSV logger for training metrics.
+    Writes header on first call, appends rows thereafter.
+    Supports resume: if the file already exists, skips the header.
+    """
+
+    FIELDS = ["iteration", "loss", "psnr", "lr", "time"]
+
+    def __init__(self, path):
+        self.path = path
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        file_exists = os.path.isfile(path) and os.path.getsize(path) > 0
+        self._file = open(path, "a", newline="")
+        self._writer = csv.writer(self._file)
+        if not file_exists:
+            self._writer.writerow(self.FIELDS)
+            self._file.flush()
+
+    def log(self, iteration, loss, psnr, lr, elapsed_time):
+        self._writer.writerow([
+            iteration,
+            f"{loss:.6f}",
+            f"{psnr:.2f}",
+            f"{lr:.2e}",
+            f"{elapsed_time:.1f}",
+        ])
+        self._file.flush()
+
+    def close(self):
+        self._file.close()
+
+
+# ─────────────────────────────────────────────
 # TEST RENDER
 # ─────────────────────────────────────────────
 
@@ -177,7 +231,7 @@ def render_test_view(
 
     render_dir = os.path.join(out_dir, "renders")
     os.makedirs(render_dir, exist_ok=True)
-    path = os.path.join(render_dir, f"step_{step:05d}.png")
+    path = os.path.join(render_dir, f"render_{step:05d}.png")
     imageio.imwrite(path, rendered)
 
     model_coarse.train()
@@ -194,7 +248,17 @@ def render_test_view(
 def train(cfg):
     # ── Directories ───────────────────────────────────────────────
     ckpt_dir = os.path.join(cfg.out_dir, "checkpoints")
-    os.makedirs(ckpt_dir, exist_ok=True)
+    logs_dir = os.path.join(cfg.out_dir, "logs")
+    render_dir = os.path.join(cfg.out_dir, "renders")
+    frames_dir = os.path.join(cfg.out_dir, "frames")
+    for d in [ckpt_dir, logs_dir, render_dir, frames_dir]:
+        os.makedirs(d, exist_ok=True)
+
+    # ── Save Config ───────────────────────────────────────────────
+    save_config(cfg, os.path.join(cfg.out_dir, "config.txt"))
+
+    # ── CSV Logger ────────────────────────────────────────────────
+    csv_logger = CSVLogger(os.path.join(logs_dir, "train_log.csv"))
 
     # ── Data ──────────────────────────────────────────────────────
     images, poses, focal, H, W = load_data(cfg.data_path)
@@ -240,6 +304,7 @@ def train(cfg):
         torch.cuda.manual_seed_all(42)
 
     print(f"\nTraining on {device} for {cfg.n_iters} iterations...\n")
+    train_start_time = time.time()
 
     # ── Loop ──────────────────────────────────────────────────────
     for i in trange(start, cfg.n_iters, desc="Training"):
@@ -298,11 +363,20 @@ def train(cfg):
 
         # ── Logging ───────────────────────────────────────────────
         if (i + 1) % cfg.log_every == 0:
+            current_lr = scheduler.get_last_lr()[0]
+            elapsed = time.time() - train_start_time
             tqdm.write(
                 f"[{i+1:>6}/{cfg.n_iters}] "
                 f"loss={loss.item():.4f}  "
                 f"psnr={psnr:.2f}dB  "
-                f"lr={scheduler.get_last_lr()[0]:.2e}"
+                f"lr={current_lr:.2e}"
+            )
+            csv_logger.log(
+                iteration    = i + 1,
+                loss         = loss.item(),
+                psnr         = psnr,
+                lr           = current_lr,
+                elapsed_time = elapsed,
             )
 
         # ── Test render ───────────────────────────────────────────
@@ -324,6 +398,22 @@ def train(cfg):
                 optimizer    = optimizer,
             )
 
+    # ── Close logger ──────────────────────────────────────────────
+    csv_logger.close()
+
+    # ── Final render ──────────────────────────────────────────────
+    rendered = render_test_view(
+        model_coarse, model_fine,
+        pos_enc_xyz, pos_enc_dir,
+        test_pose, H, W, focal, cfg,
+        step=cfg.n_iters, out_dir=cfg.out_dir,
+    )
+    # Copy as render_final.png
+    final_src = os.path.join(cfg.out_dir, "renders", f"render_{cfg.n_iters:05d}.png")
+    final_dst = os.path.join(cfg.out_dir, "renders", "render_final.png")
+    if os.path.isfile(final_src):
+        shutil.copy2(final_src, final_dst)
+
     # ── Training curves ───────────────────────────────────────────
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
     ax1.plot(loss_history); ax1.set_title("MSE Loss"); ax1.set_xlabel("Iteration")
@@ -339,8 +429,8 @@ def train(cfg):
 
 if __name__ == "__main__":
     cfg = get_config()
-    print("\n── Config ───────────────────────────────")
+    print("\n-- Config -------------------------------")
     for k, v in vars(cfg).items():
         print(f"  {k:<22} {v}")
-    print("─────────────────────────────────────────\n")
+    print("-----------------------------------------\n")
     train(cfg)
