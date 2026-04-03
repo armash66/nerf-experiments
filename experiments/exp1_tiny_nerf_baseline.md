@@ -27,7 +27,7 @@ The model optimizes rapidly in early iterations, efficiently capturing low-frequ
 ### Quantitative Curves
 The loss function minimizes rapidly before asymptoting at ~1000 iterations. This hard plateau indicates that uniform depth sampling (64 static bins/ray) becomes the primary bottleneck preventing deeper geometric refinement.
 
-![Loss and PSNR Training Curves](../outputs/training_curves.png)
+![Loss and PSNR Training Curves](../outputs/experiment_1/training_curves.png)
 
 ## Qualitative Results
 At 3000 iterations, the model attains a PSNR of approximately 24 dB. The scene is recognizable, but lacks sharp high-frequency details when compared to the original ground truth target.
@@ -36,13 +36,13 @@ At 3000 iterations, the model attains a PSNR of approximately 24 dB. The scene i
 
 | Target Ground Truth | Predicted (3000 Iters) |
 |:---:|:---:|
-| ![Ground Truth](../outputs/target_example.png) | ![Step 3000](../outputs/renders/step_03000.png) |
+| ![Ground Truth](../outputs/experiment_1/target_example.png) | ![Step 3000](../outputs/experiment_1/renders/step_03000.png) |
 
 ### Visual Progression
 
 | Iteration 500 | Iteration 1500 | Iteration 3000 |
 |:---:|:---:|:---:|
-| ![Step 500](../outputs/renders/step_00500.png) | ![Step 1500](../outputs/renders/step_01500.png) | ![Step 3000](../outputs/renders/step_03000.png) |
+| ![Step 500](../outputs/experiment_1/renders/step_00500.png) | ![Step 1500](../outputs/experiment_1/renders/step_01500.png) | ![Step 3000](../outputs/experiment_1/renders/step_03000.png) |
 
 *(Note the gradual reduction of volumetric "fog" and hardening of surface edges over time).*
 
