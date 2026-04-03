@@ -11,6 +11,7 @@ To override from command line:
     python train.py --lr 1e-3 --n_iters 10000
 """
 
+import os
 import argparse
 
 
@@ -21,6 +22,10 @@ def get_config() -> argparse.Namespace:
     All values can be overridden from the command line.
     """
     parser = argparse.ArgumentParser(description="NeRF Training Config")
+
+    # ── Experiment ────────────────────────────────────────────────
+    parser.add_argument("--experiment",  type=str,   default="experiment_1",
+                        help="Experiment name (used as output subdirectory)")
 
     # ── Data ──────────────────────────────────────────────────────
     parser.add_argument("--data_path",  type=str,   default="data/tiny_nerf_data.npz",
@@ -75,18 +80,24 @@ def get_config() -> argparse.Namespace:
                         help="Save test render every N iterations")
     parser.add_argument("--save_every",   type=int, default=1000,
                         help="Save checkpoint every N iterations")
-    parser.add_argument("--out_dir",      type=str, default="outputs",
-                        help="Directory for renders and checkpoints")
+    parser.add_argument("--out_dir",      type=str, default=None,
+                        help="Directory for renders and checkpoints (default: outputs/<experiment>)")
     parser.add_argument("--resume",       type=str, default=None,
                         help="Path to checkpoint to resume from")
 
-    return parser.parse_args()
+    cfg = parser.parse_args()
+
+    # Derive out_dir from experiment name if not explicitly provided
+    if cfg.out_dir is None:
+        cfg.out_dir = os.path.join("outputs", cfg.experiment)
+
+    return cfg
 
 
 if __name__ == "__main__":
     # Print all config values when run directly
     cfg = get_config()
-    print("\n── NeRF Config ──────────────────────────")
+    print("\n-- NeRF Config --------------------------")
     for k, v in vars(cfg).items():
         print(f"  {k:<20} {v}")
-    print("─────────────────────────────────────────\n")
+    print("-----------------------------------------\n")
